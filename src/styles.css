@@ -232,40 +232,9 @@ select:focus {
   line-height: 1;
 }
 
-.week-strip {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
-  padding: 8px 0 12px;
-}
-
-.week-day {
-  min-height: 58px;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 4px;
-  border-radius: 8px;
-  color: #9aa6b4;
-}
-
-.week-day strong {
-  color: #102033;
-  font-size: 23px;
-}
-
-.week-day.active {
-  background: #1677ff;
-  color: #fff;
-}
-
-.week-day.active strong {
-  color: #fff;
-}
-
 .summary {
   justify-content: space-between;
-  margin: 2px 0 14px;
+  margin: 12px 0 14px;
   padding: 14px;
   border-radius: 8px;
   background: #f3f7fc;
@@ -297,6 +266,17 @@ select:focus {
   border-radius: 8px;
   padding: 13px;
   background: #fff;
+}
+
+.day-row.today {
+  border-color: #1677ff;
+  background: #f4f9ff;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.08);
+}
+
+.day-row.today .label {
+  color: #1677ff;
+  font-weight: 800;
 }
 
 .day-head {
@@ -550,10 +530,6 @@ svg text {
 @media (max-width: 370px) {
   .app-shell {
     padding-inline: 10px;
-  }
-
-  .week-day strong {
-    font-size: 20px;
   }
 
   .day-head {

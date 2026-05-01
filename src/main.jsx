@@ -78,7 +78,7 @@ function buildWeekModel(weekKey, week) {
     const spent = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
     const allowed = Math.max(0, base + previousDiff);
     const diff = allowed - spent;
-    previousDiff = iso <= todayIso || spent > 0 ? diff : 0;
+    previousDiff = iso < todayIso ? diff : 0;
     return { index, date, iso, expenses, spent, allowed, diff };
   });
 }
@@ -120,7 +120,6 @@ function App() {
   }, []);
 
   const days = useMemo(() => (week ? buildWeekModel(weekKey, week) : []), [weekKey, week]);
-  const currentDay = days.find((day) => day.iso === todayIso) || days[0];
   const expenseTitles = user?.expenseTitles || [];
 
   function showServerError(action, error) {
@@ -199,8 +198,6 @@ function App() {
         onSettings={() => setModal("settings")}
         onLogout={logout}
       />
-
-      <WeekStrip days={days} selectedIso={currentDay?.iso} />
 
       <section className="summary">
         <div>
@@ -295,27 +292,12 @@ function TopBar({ user, weekKey, days, onPrev, onNext, onSettings, onLogout }) {
   );
 }
 
-function WeekStrip({ days }) {
-  return (
-    <nav className="week-strip">
-      {days.map((day) => {
-        const isToday = day.iso === todayIso;
-        return (
-          <div className={isToday ? "week-day active" : "week-day"} key={day.iso}>
-            <span>{dayNames[day.index]}</span>
-            <strong>{day.date.getDate()}</strong>
-          </div>
-        );
-      })}
-    </nav>
-  );
-}
-
 function DayRow({ day, onRemove }) {
   const isFuture = day.iso > todayIso;
+  const isToday = day.iso === todayIso;
   const over = day.diff < 0;
   return (
-    <article className="day-row">
+    <article className={isToday ? "day-row today" : "day-row"}>
       <div className="day-head">
         <div>
           <span className="label">{dayNames[day.index]}, {day.date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</span>
