@@ -78,7 +78,7 @@ function buildWeekModel(weekKey, week) {
     const spent = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
     const allowed = Math.max(0, base + previousDiff);
     const diff = allowed - spent;
-    previousDiff = iso < todayIso ? diff : 0;
+    previousDiff = iso <= todayIso || spent > 0 ? diff : 0;
     return { index, date, iso, expenses, spent, allowed, diff };
   });
 }
