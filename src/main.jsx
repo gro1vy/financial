@@ -121,7 +121,7 @@ function App() {
 
   const days = useMemo(() => (week ? buildWeekModel(weekKey, week) : []), [weekKey, week]);
   const currentDay = days.find((day) => day.iso === todayIso) || days[0];
-  const expenseTitles = user.expenseTitles || [];
+  const expenseTitles = user?.expenseTitles || [];
 
   function showServerError(action, error) {
     setError(`${action}: ${error.message}`);
