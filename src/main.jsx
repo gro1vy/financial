@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
-const categories = ["Еда", "Транспорт", "Дом", "Здоровье", "Развлечения", "Другое"];
 const dayNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
@@ -99,6 +98,7 @@ function App() {
 
   const days = useMemo(() => (week ? buildWeekModel(weekKey, week) : []), [weekKey, week]);
   const currentDay = days.find((day) => day.iso === todayIso) || days[0];
+  const expenseTitles = user.expenseTitles || [];
 
   async function saveBudget(budget, rememberBudget) {
     const data = await api("/api/week/budget", { method: "PUT", body: { key: weekKey, budget, rememberBudget } });
@@ -110,6 +110,7 @@ function App() {
   async function saveExpense(expense) {
     const data = await api("/api/expenses", { method: "POST", body: { ...expense, key: weekKey } });
     setWeek(data.week);
+    setUser(data.user);
     setModal(null);
   }
 
@@ -161,7 +162,7 @@ function App() {
 
       {error && <div className="toast" onClick={() => setError("")}>{error}</div>}
       {(needsBudget || modal === "budget") && <BudgetModal user={user} onSave={saveBudget} initial={week.budget ?? user.settings.defaultBudget ?? ""} />}
-      {modal === "expense" && <ExpenseModal days={days} onClose={() => setModal(null)} onSave={saveExpense} />}
+      {modal === "expense" && <ExpenseModal days={days} titles={expenseTitles} onClose={() => setModal(null)} onSave={saveExpense} />}
       {modal === "settings" && <SettingsModal user={user} onClose={() => setModal(null)} onSave={async (settings) => {
         const data = await api("/api/settings", { method: "PUT", body: settings });
         setUser(data.user);
@@ -269,7 +270,7 @@ function DayRow({ day, onRemove }) {
         <div className="expenses">
           {day.expenses.map((expense) => (
             <div className="expense" key={expense.id}>
-              <div><span>{expense.category}</span><strong>{expense.title || "Без названия"}</strong></div>
+              <div><strong>{expense.title || "Без названия"}</strong></div>
               <div><b>{money(expense.amount)} ₽</b><button aria-label="Удалить" onClick={() => onRemove(expense.id)}>×</button></div>
             </div>
           ))}
@@ -340,19 +341,24 @@ function BudgetModal({ user, initial, onSave }) {
   );
 }
 
-function ExpenseModal({ days, onClose, onSave }) {
+function ExpenseModal({ days, titles, onClose, onSave }) {
   const defaultDate = days.some((day) => day.iso === todayIso) ? todayIso : days[0]?.iso;
   const [date, setDate] = useState(defaultDate);
   const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState(categories[0]);
-  const [title, setTitle] = useState("");
+  const [titleMode, setTitleMode] = useState(titles[0] || "__new");
+  const [customTitle, setCustomTitle] = useState("");
+  const title = titleMode === "__new" ? customTitle : titleMode;
+
   return (
     <Modal title="Новая трата" onClose={onClose}>
       <label>Дата<select value={date} onChange={(event) => setDate(event.target.value)}>{days.map((day) => <option value={day.iso} key={day.iso}>{dayNames[day.index]}, {day.date.getDate()}</option>)}</select></label>
-      <label>Категория<select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label>Название<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Например, кофе" /></label>
+      <label>Название<select value={titleMode} onChange={(event) => setTitleMode(event.target.value)}>
+        {titles.map((item) => <option value={item} key={item}>{item}</option>)}
+        <option value="__new">Новое название</option>
+      </select></label>
+      {titleMode === "__new" && <label>Новое название<input value={customTitle} onChange={(event) => setCustomTitle(event.target.value)} placeholder="Например, кофе" autoFocus /></label>}
       <label>Сумма<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" /></label>
-      <button className="primary-button" onClick={() => onSave({ date, amount: Number(amount), category, title })}>Добавить</button>
+      <button className="primary-button" onClick={() => onSave({ date, amount: Number(amount), title: title.trim() })}>Добавить</button>
     </Modal>
   );
 }

@@ -82,7 +82,28 @@ function publicUser(user) {
     id: user.id,
     login: user.login,
     settings: user.settings || { rememberBudget: false, defaultBudget: null },
+    expenseTitles: getExpenseTitles(user),
   };
+}
+
+function getExpenseTitles(user) {
+  const saved = Array.isArray(user.expenseTitles) ? user.expenseTitles : [];
+  const fromExpenses = Object.values(user.weeks || {})
+    .flatMap((week) => week.expenses || [])
+    .map((expense) => String(expense.title || "").trim())
+    .filter(Boolean);
+  return [...new Set([...saved, ...fromExpenses])].sort((a, b) => a.localeCompare(b, "ru"));
+}
+
+function rememberExpenseTitle(user, title) {
+  const value = String(title || "").trim().slice(0, 80);
+  if (!value) return "";
+  user.expenseTitles = getExpenseTitles(user);
+  if (!user.expenseTitles.includes(value)) {
+    user.expenseTitles.push(value);
+    user.expenseTitles.sort((a, b) => a.localeCompare(b, "ru"));
+  }
+  return value;
 }
 
 function requireUser(req, res, db) {
@@ -121,6 +142,7 @@ async function api(req, res) {
       login,
       password: passwordHash(password),
       settings: { rememberBudget: false, defaultBudget: null },
+      expenseTitles: [],
       weeks: {},
     };
     db.users.push(user);
@@ -187,17 +209,17 @@ async function api(req, res) {
     const key = String(body.key || weekKey());
     user.weeks ||= {};
     user.weeks[key] ||= { budget: user.settings?.rememberBudget ? user.settings.defaultBudget : null, expenses: [] };
+    const title = rememberExpenseTitle(user, body.title);
     const expense = {
       id: randomBytes(10).toString("hex"),
       date: String(body.date || new Date().toISOString().slice(0, 10)),
-      category: String(body.category || "Другое").slice(0, 40),
-      title: String(body.title || "").slice(0, 80),
+      title,
       amount: Math.max(0, Number(body.amount || 0)),
       createdAt: new Date().toISOString(),
     };
     user.weeks[key].expenses.push(expense);
     writeDb(db);
-    return json(res, 201, { expense, week: user.weeks[key] });
+    return json(res, 201, { expense, week: user.weeks[key], user: publicUser(user) });
   }
 
   if (req.url.startsWith("/api/expenses/") && req.method === "DELETE") {
