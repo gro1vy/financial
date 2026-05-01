@@ -78,7 +78,7 @@ function buildWeekModel(weekKey, week) {
     const spent = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
     const allowed = Math.max(0, base + previousDiff);
     const diff = allowed - spent;
-    previousDiff = iso < todayIso ? diff : 0;
+    previousDiff = iso <= todayIso || spent > 0 ? diff : 0;
     return { index, date, iso, expenses, spent, allowed, diff };
   });
 }
@@ -120,6 +120,7 @@ function App() {
   }, []);
 
   const days = useMemo(() => (week ? buildWeekModel(weekKey, week) : []), [weekKey, week]);
+  const currentDay = days.find((day) => day.iso === todayIso) || days[0];
   const expenseTitles = user?.expenseTitles || [];
 
   function showServerError(action, error) {
