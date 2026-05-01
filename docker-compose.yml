@@ -1,0 +1,15 @@
+services:
+  fin:
+    build: .
+    container_name: fin-weekly
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    environment:
+      PORT: 4173
+      NODE_ENV: production
+    volumes:
+      - fin-data:/app/data
+
+volumes:
+  fin-data:

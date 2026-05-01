@@ -6,7 +6,7 @@ const categories = ["Еда", "Транспорт", "Дом", "Здоровье"
 const dayNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
-const todayIso = new Date().toISOString().slice(0, 10);
+const todayIso = toIso(new Date());
 
 function isoWeekKey(date = new Date()) {
   const value = new Date(date);
@@ -37,7 +37,10 @@ function addDays(date, count) {
 }
 
 function toIso(date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function money(value) {
@@ -68,7 +71,7 @@ function buildWeekModel(weekKey, week) {
     const spent = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
     const allowed = Math.max(0, base + previousDiff);
     const diff = allowed - spent;
-    previousDiff = diff;
+    previousDiff = iso <= todayIso || spent > 0 ? diff : 0;
     return { index, date, iso, expenses, spent, allowed, diff };
   });
 }
