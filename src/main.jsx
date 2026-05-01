@@ -52,9 +52,17 @@ function api(path, options = {}) {
     headers: { "content-type": "application/json", ...(options.headers || {}) },
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
+  }).catch(() => {
+    const error = new Error("Не удалось связаться с сервером. Проверь подключение или перезапусти приложение.");
+    error.status = 0;
+    throw error;
   }).then(async (response) => {
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "Ошибка запроса");
+    if (!response.ok) {
+      const error = new Error(data.error || `Сервер вернул ошибку ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
     return data;
   });
 }
@@ -70,7 +78,7 @@ function buildWeekModel(weekKey, week) {
     const spent = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
     const allowed = Math.max(0, base + previousDiff);
     const diff = allowed - spent;
-    previousDiff = iso <= todayIso || spent > 0 ? diff : 0;
+    previousDiff = iso < todayIso ? diff : 0;
     return { index, date, iso, expenses, spent, allowed, diff };
   });
 }
@@ -81,15 +89,30 @@ function App() {
   const [weekKey, setWeekKey] = useState(isoWeekKey());
   const [week, setWeek] = useState(null);
   const [error, setError] = useState("");
+  const [authError, setAuthError] = useState("");
   const [modal, setModal] = useState(null);
 
   useEffect(() => {
-    api("/api/me").then(({ user }) => setUser(user)).catch(() => setUser(null)).finally(() => setAuthReady(true));
+    api("/api/me")
+      .then(({ user }) => {
+        setUser(user);
+        setAuthError("");
+      })
+      .catch((error) => {
+        if (error.status !== 401) setAuthError(error.message);
+        setUser(null);
+      })
+      .finally(() => setAuthReady(true));
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    api(`/api/week?key=${weekKey}`).then(({ week }) => setWeek(week)).catch((error) => setError(error.message));
+    api(`/api/week?key=${weekKey}`)
+      .then(({ week }) => {
+        setWeek(week);
+        setError("");
+      })
+      .catch((error) => setError(`Не удалось загрузить неделю: ${error.message}`));
   }, [user, weekKey]);
 
   useEffect(() => {
@@ -100,27 +123,67 @@ function App() {
   const currentDay = days.find((day) => day.iso === todayIso) || days[0];
   const expenseTitles = user.expenseTitles || [];
 
+  function showServerError(action, error) {
+    setError(`${action}: ${error.message}`);
+  }
+
   async function saveBudget(budget, rememberBudget) {
-    const data = await api("/api/week/budget", { method: "PUT", body: { key: weekKey, budget, rememberBudget } });
-    setWeek(data.week);
-    setUser(data.user);
-    setModal(null);
+    try {
+      const data = await api("/api/week/budget", { method: "PUT", body: { key: weekKey, budget, rememberBudget } });
+      setWeek(data.week);
+      setUser(data.user);
+      setModal(null);
+      setError("");
+    } catch (error) {
+      showServerError("Не удалось сохранить бюджет", error);
+    }
   }
 
   async function saveExpense(expense) {
-    const data = await api("/api/expenses", { method: "POST", body: { ...expense, key: weekKey } });
-    setWeek(data.week);
-    setUser(data.user);
-    setModal(null);
+    try {
+      const data = await api("/api/expenses", { method: "POST", body: { ...expense, key: weekKey } });
+      setWeek(data.week);
+      setUser(data.user);
+      setModal(null);
+      setError("");
+    } catch (error) {
+      showServerError("Не удалось добавить трату", error);
+    }
   }
 
   async function removeExpense(id) {
-    const data = await api(`/api/expenses/${id}?key=${weekKey}`, { method: "DELETE" });
-    setWeek(data.week);
+    try {
+      const data = await api(`/api/expenses/${id}?key=${weekKey}`, { method: "DELETE" });
+      setWeek(data.week);
+      setError("");
+    } catch (error) {
+      showServerError("Не удалось удалить трату", error);
+    }
+  }
+
+  async function saveSettings(settings) {
+    try {
+      const data = await api("/api/settings", { method: "PUT", body: settings });
+      setUser(data.user);
+      setModal(null);
+      setError("");
+    } catch (error) {
+      showServerError("Не удалось сохранить настройки", error);
+    }
+  }
+
+  async function logout() {
+    try {
+      await api("/api/logout", { method: "POST" });
+      setUser(null);
+      setError("");
+    } catch (error) {
+      showServerError("Не удалось выйти", error);
+    }
   }
 
   if (!authReady) return <Splash />;
-  if (!user) return <Auth onAuth={setUser} />;
+  if (!user) return <Auth onAuth={setUser} initialError={authError} />;
   if (!week) return <Splash />;
 
   const needsBudget = week.budget === null || week.budget === undefined;
@@ -134,10 +197,7 @@ function App() {
         onPrev={() => setWeekKey(isoWeekKey(addDays(dateFromWeekKey(weekKey), -7)))}
         onNext={() => setWeekKey(isoWeekKey(addDays(dateFromWeekKey(weekKey), 7)))}
         onSettings={() => setModal("settings")}
-        onLogout={async () => {
-          await api("/api/logout", { method: "POST" });
-          setUser(null);
-        }}
+        onLogout={logout}
       />
 
       <WeekStrip days={days} selectedIso={currentDay?.iso} />
@@ -163,11 +223,7 @@ function App() {
       {error && <div className="toast" onClick={() => setError("")}>{error}</div>}
       {(needsBudget || modal === "budget") && <BudgetModal user={user} onSave={saveBudget} initial={week.budget ?? user.settings.defaultBudget ?? ""} />}
       {modal === "expense" && <ExpenseModal days={days} titles={expenseTitles} onClose={() => setModal(null)} onSave={saveExpense} />}
-      {modal === "settings" && <SettingsModal user={user} onClose={() => setModal(null)} onSave={async (settings) => {
-        const data = await api("/api/settings", { method: "PUT", body: settings });
-        setUser(data.user);
-        setModal(null);
-      }} />}
+      {modal === "settings" && <SettingsModal user={user} onClose={() => setModal(null)} onSave={saveSettings} />}
     </main>
   );
 }
@@ -176,16 +232,21 @@ function Splash() {
   return <div className="center-screen"><div className="loader" /></div>;
 }
 
-function Auth({ onAuth }) {
+function Auth({ onAuth, initialError = "" }) {
   const [mode, setMode] = useState("login");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
+
+  useEffect(() => {
+    setError(initialError);
+  }, [initialError]);
 
   async function submit(event) {
     event.preventDefault();
     try {
       const data = await api(mode === "login" ? "/api/login" : "/api/register", { method: "POST", body: { login, password } });
+      setError("");
       onAuth(data.user);
     } catch (error) {
       setError(error.message);
