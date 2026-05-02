@@ -123,7 +123,21 @@ select {
   color: #102033;
   background: #fff;
   font-size: 16px;
+  line-height: 46px;
   outline: none;
+}
+
+select {
+  appearance: none;
+  padding-right: 38px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #8492a6 50%),
+    linear-gradient(135deg, #8492a6 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) 20px,
+    calc(100% - 14px) 20px;
+  background-repeat: no-repeat;
+  background-size: 6px 6px, 6px 6px;
 }
 
 input:focus,
@@ -133,6 +147,8 @@ select:focus {
 }
 
 .primary-button,
+.secondary-button,
+.danger-button,
 .ghost-button,
 .link-button,
 .icon-button,
@@ -147,6 +163,23 @@ select:focus {
   color: #fff;
   background: #1677ff;
   font-weight: 800;
+}
+
+.secondary-button,
+.danger-button {
+  min-height: 46px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.secondary-button {
+  color: #102033;
+  background: #eef3f8;
+}
+
+.danger-button {
+  color: #fff;
+  background: #d93025;
 }
 
 .ghost-button {
@@ -363,6 +396,42 @@ select:focus {
   font-size: 20px;
 }
 
+.title-picker {
+  position: relative;
+}
+
+.title-suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 25;
+  display: grid;
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(16, 32, 51, 0.14);
+}
+
+.title-suggestions button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #102033;
+  background: transparent;
+  text-align: left;
+  font-size: 15px;
+}
+
+.title-suggestions button:active,
+.title-suggestions button:hover {
+  background: #f3f7fc;
+}
+
 .stats {
   margin-top: 18px;
   padding: 14px 0 4px;
@@ -390,6 +459,12 @@ svg {
   border: 1px solid #edf1f6;
   border-radius: 8px;
   background: #fff;
+  touch-action: none;
+  user-select: none;
+}
+
+.chart-wrap {
+  position: relative;
 }
 
 .grid-line {
@@ -422,6 +497,39 @@ svg {
 .dot {
   stroke: #fff;
   stroke-width: 2;
+}
+
+.active-chart-line {
+  stroke: #102033;
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 12px;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  min-width: 156px;
+  padding: 9px 10px;
+  border: 1px solid #dbe5f1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(16, 32, 51, 0.14);
+  color: #5f7084;
+  font-size: 12px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.chart-tooltip strong {
+  color: #102033;
+  font-size: 13px;
+}
+
+.chart-tooltip span {
+  white-space: nowrap;
 }
 
 .good-dot {
@@ -506,6 +614,17 @@ svg text {
 
 .modal h2 {
   font-size: 22px;
+}
+
+.modal-copy {
+  color: #5f7084;
+  line-height: 1.45;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .check-row {

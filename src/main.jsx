@@ -91,6 +91,9 @@ function App() {
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState("");
   const [modal, setModal] = useState(null);
+  const [budgetDismissed, setBudgetDismissed] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingLogout, setPendingLogout] = useState(false);
 
   useEffect(() => {
     api("/api/me")
@@ -132,6 +135,7 @@ function App() {
       const data = await api("/api/week/budget", { method: "PUT", body: { key: weekKey, budget, rememberBudget } });
       setWeek(data.week);
       setUser(data.user);
+      setBudgetDismissed(false);
       setModal(null);
       setError("");
     } catch (error) {
@@ -155,6 +159,7 @@ function App() {
     try {
       const data = await api(`/api/expenses/${id}?key=${weekKey}`, { method: "DELETE" });
       setWeek(data.week);
+      setPendingDelete(null);
       setError("");
     } catch (error) {
       showServerError("Не удалось удалить трату", error);
@@ -197,7 +202,7 @@ function App() {
         onPrev={() => setWeekKey(isoWeekKey(addDays(dateFromWeekKey(weekKey), -7)))}
         onNext={() => setWeekKey(isoWeekKey(addDays(dateFromWeekKey(weekKey), 7)))}
         onSettings={() => setModal("settings")}
-        onLogout={logout}
+        onLogout={() => setPendingLogout(true)}
       />
 
       <section className="summary">
@@ -205,12 +210,15 @@ function App() {
           <span className="label">Бюджет недели</span>
           <strong>{money(week.budget)} ₽</strong>
         </div>
-        <button className="ghost-button" onClick={() => setModal("budget")}>Изменить</button>
+        <button className="ghost-button" onClick={() => {
+          setBudgetDismissed(false);
+          setModal("budget");
+        }}>Изменить</button>
       </section>
 
       <section className="day-list">
         {days.map((day) => (
-          <DayRow key={day.iso} day={day} onRemove={removeExpense} />
+          <DayRow key={day.iso} day={day} onRemove={setPendingDelete} />
         ))}
       </section>
 
@@ -219,9 +227,35 @@ function App() {
       <button className="fab" aria-label="Добавить трату" onClick={() => setModal("expense")}>+</button>
 
       {error && <div className="toast" onClick={() => setError("")}>{error}</div>}
-      {(needsBudget || modal === "budget") && <BudgetModal user={user} onSave={saveBudget} initial={week.budget ?? user.settings.defaultBudget ?? ""} />}
+      {((needsBudget && !budgetDismissed) || modal === "budget") && (
+        <BudgetModal
+          user={user}
+          onClose={() => {
+            setBudgetDismissed(true);
+            setModal(null);
+          }}
+          onSave={saveBudget}
+          initial={week.budget ?? user.settings.defaultBudget ?? ""}
+        />
+      )}
       {modal === "expense" && <ExpenseModal days={days} titles={expenseTitles} onClose={() => setModal(null)} onSave={saveExpense} />}
       {modal === "settings" && <SettingsModal user={user} onClose={() => setModal(null)} onSave={saveSettings} />}
+      {pendingDelete && (
+        <ConfirmDeleteModal
+          expense={pendingDelete}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => removeExpense(pendingDelete.id)}
+        />
+      )}
+      {pendingLogout && (
+        <ConfirmLogoutModal
+          onCancel={() => setPendingLogout(false)}
+          onConfirm={() => {
+            setPendingLogout(false);
+            logout();
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -315,7 +349,7 @@ function DayRow({ day, onRemove }) {
           {day.expenses.map((expense) => (
             <div className="expense" key={expense.id}>
               <div><strong>{expense.title || "Без названия"}</strong></div>
-              <div><b>{money(expense.amount)} ₽</b><button aria-label="Удалить" onClick={() => onRemove(expense.id)}>×</button></div>
+              <div><b>{money(expense.amount)} ₽</b><button aria-label="Удалить" onClick={() => onRemove(expense)}>×</button></div>
             </div>
           ))}
         </div>
@@ -327,6 +361,7 @@ function DayRow({ day, onRemove }) {
 }
 
 function Stats({ days }) {
+  const [activeIndex, setActiveIndex] = useState(null);
   const width = 330;
   const height = 210;
   const pad = 28;
@@ -338,6 +373,16 @@ function Stats({ days }) {
   };
   const spentLine = days.map((day) => point(day, day.spent).join(",")).join(" ");
   const allowedLine = days.map((day) => point(day, day.allowed).join(",")).join(" ");
+  const activeDay = activeIndex === null ? null : days[activeIndex];
+  const activePoint = activeDay ? point(activeDay, 0) : null;
+
+  function updateActiveDay(event) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
+    const step = (width - pad * 2) / 6;
+    const index = Math.max(0, Math.min(6, Math.round((svgX - pad) / step)));
+    setActiveIndex(index);
+  }
 
   return (
     <section className="stats">
@@ -345,26 +390,53 @@ function Stats({ days }) {
         <h2>Статистика</h2>
         <span>по дням</span>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График трат по дням">
-        {[0, 1, 2, 3].map((line) => (
-          <line key={line} x1={pad} x2={width - pad} y1={pad + line * 45} y2={pad + line * 45} className="grid-line" />
-        ))}
-        {days.map((day) => {
-          const [x] = point(day, 0);
-          return <line key={day.iso} x1={x} x2={x} y1={pad} y2={height - pad} className="grid-line vertical" />;
-        })}
-        <polyline points={allowedLine} className="allowed-line" />
-        <polyline points={spentLine} className="spent-line" />
-        {days.map((day) => {
-          const [x, y] = point(day, day.spent);
-          const ok = day.spent <= day.allowed;
-          return <circle key={day.iso} cx={x} cy={y} r="5.5" className={ok ? "dot good-dot" : "dot bad-dot"} />;
-        })}
-        {days.map((day) => {
-          const [x] = point(day, 0);
-          return <text key={day.iso} x={x} y={height - 6} textAnchor="middle">{dayNames[day.index]}</text>;
-        })}
-      </svg>
+      <div className="chart-wrap">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="График трат по дням"
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            updateActiveDay(event);
+          }}
+          onPointerMove={(event) => {
+            if (activeIndex !== null) updateActiveDay(event);
+          }}
+          onPointerUp={() => setActiveIndex(null)}
+          onPointerCancel={() => setActiveIndex(null)}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          {[0, 1, 2, 3].map((line) => (
+            <line key={line} x1={pad} x2={width - pad} y1={pad + line * 45} y2={pad + line * 45} className="grid-line" />
+          ))}
+          {days.map((day) => {
+            const [x] = point(day, 0);
+            return <line key={day.iso} x1={x} x2={x} y1={pad} y2={height - pad} className="grid-line vertical" />;
+          })}
+          <polyline points={allowedLine} className="allowed-line" />
+          <polyline points={spentLine} className="spent-line" />
+          {days.map((day) => {
+            const [x, y] = point(day, day.spent);
+            const ok = day.spent <= day.allowed;
+            return <circle key={day.iso} cx={x} cy={y} r="5.5" className={ok ? "dot good-dot" : "dot bad-dot"} />;
+          })}
+          {activeDay && <line x1={activePoint[0]} x2={activePoint[0]} y1={pad} y2={height - pad} className="active-chart-line" />}
+          {days.map((day) => {
+            const [x] = point(day, 0);
+            return <text key={day.iso} x={x} y={height - 6} textAnchor="middle">{dayNames[day.index]}</text>;
+          })}
+        </svg>
+        {activeDay && (
+          <div className="chart-tooltip" style={{ left: `${(activePoint[0] / width) * 100}%` }}>
+            <strong>{dayNames[activeDay.index]}, {activeDay.date.getDate()}</strong>
+            <span>Потратил: {money(activeDay.spent)} ₽</span>
+            <span>Можно было: {money(activeDay.allowed)} ₽</span>
+            <span className={activeDay.diff >= 0 ? "good" : "bad"}>
+              {activeDay.diff >= 0 ? "Осталось" : "Перерасход"}: {money(Math.abs(activeDay.diff))} ₽
+            </span>
+          </div>
+        )}
+      </div>
       <div className="legend">
         <span><i className="spent-swatch" />Факт</span>
         <span><i className="allowed-swatch" />Можно</span>
@@ -373,11 +445,11 @@ function Stats({ days }) {
   );
 }
 
-function BudgetModal({ user, initial, onSave }) {
+function BudgetModal({ user, initial, onClose, onSave }) {
   const [budget, setBudget] = useState(initial);
   const [remember, setRemember] = useState(Boolean(user.settings.rememberBudget));
   return (
-    <Modal title="Бюджет недели">
+    <Modal title="Бюджет недели" onClose={onClose}>
       <label>Сумма на неделю<input inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} autoFocus /></label>
       <label className="check-row"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />Запомнить для следующих недель</label>
       <button className="primary-button" onClick={() => onSave(Number(budget), remember)}>Сохранить</button>
@@ -389,18 +461,47 @@ function ExpenseModal({ days, titles, onClose, onSave }) {
   const defaultDate = days.some((day) => day.iso === todayIso) ? todayIso : days[0]?.iso;
   const [date, setDate] = useState(defaultDate);
   const [amount, setAmount] = useState("");
-  const [titleMode, setTitleMode] = useState(titles[0] || "__new");
-  const [customTitle, setCustomTitle] = useState("");
-  const title = titleMode === "__new" ? customTitle : titleMode;
+  const [title, setTitle] = useState("");
+  const [isTitlePickerOpen, setIsTitlePickerOpen] = useState(false);
+  const filteredTitles = titles
+    .filter((item) => item.toLowerCase().includes(title.trim().toLowerCase()))
+    .slice(0, 8);
 
   return (
     <Modal title="Новая трата" onClose={onClose}>
       <label>Дата<select value={date} onChange={(event) => setDate(event.target.value)}>{days.map((day) => <option value={day.iso} key={day.iso}>{dayNames[day.index]}, {day.date.getDate()}</option>)}</select></label>
-      <label>Название<select value={titleMode} onChange={(event) => setTitleMode(event.target.value)}>
-        {titles.map((item) => <option value={item} key={item}>{item}</option>)}
-        <option value="__new">Новое название</option>
-      </select></label>
-      {titleMode === "__new" && <label>Новое название<input value={customTitle} onChange={(event) => setCustomTitle(event.target.value)} placeholder="Например, кофе" autoFocus /></label>}
+      <label>Название
+        <div className="title-picker">
+          <input
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setIsTitlePickerOpen(true);
+            }}
+            onFocus={() => setIsTitlePickerOpen(true)}
+            onBlur={() => window.setTimeout(() => setIsTitlePickerOpen(false), 120)}
+            placeholder="Найти или ввести новое"
+            autoComplete="off"
+          />
+          {isTitlePickerOpen && filteredTitles.length > 0 && (
+            <div className="title-suggestions">
+              {filteredTitles.map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setTitle(item);
+                    setIsTitlePickerOpen(false);
+                  }}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </label>
       <label>Сумма<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" /></label>
       <button className="primary-button" onClick={() => onSave({ date, amount: Number(amount), title: title.trim() })}>Добавить</button>
     </Modal>
@@ -415,6 +516,30 @@ function SettingsModal({ user, onClose, onSave }) {
       <label className="check-row"><input type="checkbox" checked={rememberBudget} onChange={(event) => setRememberBudget(event.target.checked)} />Запоминать бюджет</label>
       <label>Бюджет по умолчанию<input inputMode="decimal" value={defaultBudget} onChange={(event) => setDefaultBudget(event.target.value)} /></label>
       <button className="primary-button" onClick={() => onSave({ rememberBudget, defaultBudget: defaultBudget === "" ? null : Number(defaultBudget) })}>Сохранить</button>
+    </Modal>
+  );
+}
+
+function ConfirmDeleteModal({ expense, onCancel, onConfirm }) {
+  return (
+    <Modal title="Удалить трату?" onClose={onCancel}>
+      <p className="modal-copy">{expense.title || "Без названия"} · {money(expense.amount)} ₽</p>
+      <div className="modal-actions">
+        <button className="secondary-button" onClick={onCancel}>Отмена</button>
+        <button className="danger-button" onClick={onConfirm}>Удалить</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ConfirmLogoutModal({ onCancel, onConfirm }) {
+  return (
+    <Modal title="Выйти из аккаунта?" onClose={onCancel}>
+      <p className="modal-copy">Текущая сессия будет завершена на этом устройстве.</p>
+      <div className="modal-actions">
+        <button className="secondary-button" onClick={onCancel}>Отмена</button>
+        <button className="danger-button" onClick={onConfirm}>Выйти</button>
+      </div>
     </Modal>
   );
 }
