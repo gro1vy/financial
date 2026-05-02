@@ -58,8 +58,12 @@ button {
   to { transform: rotate(360deg); }
 }
 
+.week-content {
+  position: relative;
+}
+
 .loading-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 18;
   display: grid;
@@ -514,6 +518,12 @@ svg {
   stroke: #102033;
   stroke-width: 2;
   stroke-dasharray: 4 4;
+}
+
+.today-chart-line {
+  stroke: #1677ff;
+  stroke-width: 2;
+  opacity: 0.72;
 }
 
 .chart-tooltip {

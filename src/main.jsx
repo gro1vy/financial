@@ -217,28 +217,30 @@ function App() {
         onLogout={() => setPendingLogout(true)}
       />
 
-      <section className="summary">
-        <div>
-          <span className="label">Бюджет недели</span>
-          <strong>{money(week.budget)} ₽</strong>
-        </div>
-        <button className="ghost-button" onClick={() => {
-          setBudgetDismissed(false);
-          setModal("budget");
-        }}>Изменить</button>
-      </section>
+      <div className="week-content">
+        <section className="summary">
+          <div>
+            <span className="label">Бюджет недели</span>
+            <strong>{money(week.budget)} ₽</strong>
+          </div>
+          <button className="ghost-button" onClick={() => {
+            setBudgetDismissed(false);
+            setModal("budget");
+          }}>Изменить</button>
+        </section>
 
-      <section className="day-list">
-        {days.map((day) => (
-          <DayRow key={day.iso} day={day} onRemove={setPendingDelete} />
-        ))}
-      </section>
+        <section className="day-list">
+          {days.map((day) => (
+            <DayRow key={day.iso} day={day} onRemove={setPendingDelete} />
+          ))}
+        </section>
 
-      <Stats days={days} />
+        <Stats days={days} />
 
-      <button className="fab" aria-label="Добавить трату" onClick={() => setModal("expense")}>+</button>
+        {weekLoading && <LoadingOverlay />}
+      </div>
 
-      {weekLoading && <LoadingOverlay />}
+      {!weekLoading && <button className="fab" aria-label="Добавить трату" onClick={() => setModal("expense")}>+</button>}
       {error && <div className="toast" onClick={() => setError("")}>{error}</div>}
       {((needsBudget && !budgetDismissed) || modal === "budget") && (
         <BudgetModal
@@ -396,6 +398,8 @@ function Stats({ days }) {
   const allowedLine = days.map((day) => point(day, day.allowed).join(",")).join(" ");
   const activeDay = activeIndex === null ? null : days[activeIndex];
   const activePoint = activeDay ? point(activeDay, 0) : null;
+  const todayDay = days.find((day) => day.iso === todayIso);
+  const todayPoint = todayDay ? point(todayDay, 0) : null;
   const tooltipClass = activeIndex === 0 ? "chart-tooltip left-edge" : activeIndex === 6 ? "chart-tooltip right-edge" : "chart-tooltip";
 
   function updateActiveDay(event) {
@@ -442,6 +446,7 @@ function Stats({ days }) {
             const ok = day.spent <= day.allowed;
             return <circle key={day.iso} cx={x} cy={y} r="5.5" className={ok ? "dot good-dot" : "dot bad-dot"} />;
           })}
+          {todayDay && <line x1={todayPoint[0]} x2={todayPoint[0]} y1={pad} y2={height - pad} className="today-chart-line" />}
           {activeDay && <line x1={activePoint[0]} x2={activePoint[0]} y1={pad} y2={height - pad} className="active-chart-line" />}
           {days.map((day) => {
             const [x] = point(day, 0);
@@ -451,11 +456,17 @@ function Stats({ days }) {
         {activeDay && (
           <div className={tooltipClass} style={{ left: `${(activePoint[0] / width) * 100}%` }}>
             <strong>{dayNames[activeDay.index]}, {activeDay.date.getDate()}</strong>
-            <span>Потратил: {money(activeDay.spent)} ₽</span>
-            <span>Можно было: {money(activeDay.allowed)} ₽</span>
-            <span className={activeDay.diff >= 0 ? "good" : "bad"}>
-              {activeDay.diff >= 0 ? "Осталось" : "Перерасход"}: {money(Math.abs(activeDay.diff))} ₽
-            </span>
+            {activeDay.iso > todayIso ? (
+              <span>Можно будет потратить: {money(activeDay.allowed)} ₽</span>
+            ) : (
+              <>
+                <span>Потратил: {money(activeDay.spent)} ₽</span>
+                <span>{activeDay.iso === todayIso ? "Можно потратить" : "Можно было"}: {money(activeDay.allowed)} ₽</span>
+                <span className={activeDay.diff >= 0 ? "good" : "bad"}>
+                  {activeDay.diff >= 0 ? "Осталось" : "Перерасход"}: {money(Math.abs(activeDay.diff))} ₽
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>
