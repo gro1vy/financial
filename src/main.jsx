@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -91,9 +91,11 @@ function App() {
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState("");
   const [modal, setModal] = useState(null);
+  const [weekLoading, setWeekLoading] = useState(false);
   const [budgetDismissed, setBudgetDismissed] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingLogout, setPendingLogout] = useState(false);
+  const weekRequestRef = useRef(0);
 
   useEffect(() => {
     api("/api/me")
@@ -110,12 +112,22 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
+    const requestId = weekRequestRef.current + 1;
+    weekRequestRef.current = requestId;
+    setWeekLoading(true);
     api(`/api/week?key=${weekKey}`)
       .then(({ week }) => {
+        if (weekRequestRef.current !== requestId) return;
         setWeek(week);
         setError("");
       })
-      .catch((error) => setError(`Не удалось загрузить неделю: ${error.message}`));
+      .catch((error) => {
+        if (weekRequestRef.current !== requestId) return;
+        setError(`Не удалось загрузить неделю: ${error.message}`);
+      })
+      .finally(() => {
+        if (weekRequestRef.current === requestId) setWeekLoading(false);
+      });
   }, [user, weekKey]);
 
   useEffect(() => {
@@ -226,6 +238,7 @@ function App() {
 
       <button className="fab" aria-label="Добавить трату" onClick={() => setModal("expense")}>+</button>
 
+      {weekLoading && <LoadingOverlay />}
       {error && <div className="toast" onClick={() => setError("")}>{error}</div>}
       {((needsBudget && !budgetDismissed) || modal === "budget") && (
         <BudgetModal
@@ -262,6 +275,14 @@ function App() {
 
 function Splash() {
   return <div className="center-screen"><div className="loader" /></div>;
+}
+
+function LoadingOverlay() {
+  return (
+    <div className="loading-overlay" aria-live="polite" aria-label="Загрузка недели">
+      <div className="loader" />
+    </div>
+  );
 }
 
 function Auth({ onAuth, initialError = "" }) {
@@ -375,6 +396,7 @@ function Stats({ days }) {
   const allowedLine = days.map((day) => point(day, day.allowed).join(",")).join(" ");
   const activeDay = activeIndex === null ? null : days[activeIndex];
   const activePoint = activeDay ? point(activeDay, 0) : null;
+  const tooltipClass = activeIndex === 0 ? "chart-tooltip left-edge" : activeIndex === 6 ? "chart-tooltip right-edge" : "chart-tooltip";
 
   function updateActiveDay(event) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -427,7 +449,7 @@ function Stats({ days }) {
           })}
         </svg>
         {activeDay && (
-          <div className="chart-tooltip" style={{ left: `${(activePoint[0] / width) * 100}%` }}>
+          <div className={tooltipClass} style={{ left: `${(activePoint[0] / width) * 100}%` }}>
             <strong>{dayNames[activeDay.index]}, {activeDay.date.getDate()}</strong>
             <span>Потратил: {money(activeDay.spent)} ₽</span>
             <span>Можно было: {money(activeDay.allowed)} ₽</span>

@@ -58,6 +58,17 @@ button {
   to { transform: rotate(360deg); }
 }
 
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  display: grid;
+  place-items: center;
+  background: rgba(245, 247, 251, 0.72);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
 .auth-screen {
   background: linear-gradient(180deg, #eef5ff 0%, #ffffff 48%, #f5f7fb 100%);
 }
@@ -521,6 +532,14 @@ svg {
   font-size: 12px;
   pointer-events: none;
   transform: translateX(-50%);
+}
+
+.chart-tooltip.left-edge {
+  transform: translateX(0);
+}
+
+.chart-tooltip.right-edge {
+  transform: translateX(-100%);
 }
 
 .chart-tooltip strong {
