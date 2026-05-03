@@ -245,10 +245,9 @@ select:focus {
   font-size: 13px;
 }
 
-.section-tabs,
 .view-toggle {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   margin: 12px 0;
   padding: 4px;
@@ -256,11 +255,6 @@ select:focus {
   background: #eef3f8;
 }
 
-.view-toggle {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.section-tabs button,
 .view-toggle button {
   min-height: 38px;
   border: 0;
@@ -270,11 +264,108 @@ select:focus {
   font-weight: 800;
 }
 
-.section-tabs button.active,
 .view-toggle button.active {
   color: #102033;
   background: #fff;
   box-shadow: 0 1px 4px rgba(16, 32, 51, 0.08);
+}
+
+.menu-button {
+  gap: 4px;
+  padding: 0;
+}
+
+.menu-button span {
+  width: 20px;
+  height: 2px;
+  border-radius: 4px;
+  background: currentColor;
+}
+
+.side-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.side-menu-layer.open {
+  pointer-events: auto;
+}
+
+.side-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(10, 21, 34, 0);
+  transition: background 0.2s ease;
+}
+
+.side-menu-layer.open .side-menu-backdrop {
+  background: rgba(10, 21, 34, 0.34);
+}
+
+.side-menu {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(82vw, 340px);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 18px;
+  padding: max(18px, env(safe-area-inset-top)) 16px 18px;
+  background: #fff;
+  box-shadow: -18px 0 50px rgba(16, 32, 51, 0.18);
+  transform: translateX(100%);
+  transition: transform 0.22s ease;
+}
+
+.side-menu-layer.open .side-menu {
+  transform: translateX(0);
+}
+
+.side-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.side-menu-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.side-nav,
+.side-menu-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.side-nav button,
+.side-menu-actions button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #102033;
+  background: #f3f7fc;
+  text-align: left;
+  font-weight: 800;
+}
+
+.side-nav button.active {
+  color: #fff;
+  background: #1677ff;
+}
+
+.side-menu-actions {
+  align-self: end;
+}
+
+.side-menu-actions .danger-text {
+  color: #d93025;
 }
 
 .week-title {

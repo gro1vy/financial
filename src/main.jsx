@@ -174,6 +174,7 @@ function App() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingLogout, setPendingLogout] = useState(false);
   const [pendingActual, setPendingActual] = useState(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const weekRequestRef = useRef(0);
   const monthRequestRef = useRef(0);
 
@@ -366,24 +367,43 @@ function App() {
   if (!week) return <Splash />;
 
   const needsBudget = week.budget === null || week.budget === undefined;
+  const prevMonth = () => setMonthKeyState(toMonthKey(addDays(dateFromMonthKey(monthKeyState), -1)));
+  const nextMonth = () => setMonthKeyState(toMonthKey(new Date(dateFromMonthKey(monthKeyState).getFullYear(), dateFromMonthKey(monthKeyState).getMonth() + 1, 1)));
 
   return (
     <main className="app-shell">
       <TopBar
+        section={activeSection}
         user={user}
         weekKey={weekKey}
+        monthKeyValue={monthKeyState}
+        monthEndBalance={monthModel.endBalance}
         days={days}
         onPrev={() => setWeekKey(isoWeekKey(addDays(dateFromWeekKey(weekKey), -7)))}
         onNext={() => setWeekKey(isoWeekKey(addDays(dateFromWeekKey(weekKey), 7)))}
-        onSettings={() => setModal("settings")}
-        onLogout={() => setPendingLogout(true)}
+        onPrevMonth={prevMonth}
+        onNextMonth={nextMonth}
+        onMenu={() => setIsMenuOpen(true)}
       />
 
-      <nav className="section-tabs">
-        <button className={activeSection === "overview" ? "active" : ""} onClick={() => setActiveSection("overview")}>Главная</button>
-        <button className={activeSection === "week" ? "active" : ""} onClick={() => setActiveSection("week")}>Неделя</button>
-        <button className={activeSection === "month" ? "active" : ""} onClick={() => setActiveSection("month")}>Месяц</button>
-      </nav>
+      <SideMenu
+        open={isMenuOpen}
+        activeSection={activeSection}
+        user={user}
+        onClose={() => setIsMenuOpen(false)}
+        onSectionChange={(section) => {
+          setActiveSection(section);
+          setIsMenuOpen(false);
+        }}
+        onSettings={() => {
+          setModal("settings");
+          setIsMenuOpen(false);
+        }}
+        onLogout={() => {
+          setPendingLogout(true);
+          setIsMenuOpen(false);
+        }}
+      />
 
       {activeSection === "overview" && <OverviewScreen user={user} monthModel={monthModel} />}
 
@@ -421,8 +441,6 @@ function App() {
           selectedWeek={selectedMonthWeek}
           weekIndex={monthWeekIndex}
           loading={monthLoading}
-          onPrevMonth={() => setMonthKeyState(toMonthKey(addDays(dateFromMonthKey(monthKeyState), -1)))}
-          onNextMonth={() => setMonthKeyState(toMonthKey(new Date(dateFromMonthKey(monthKeyState).getFullYear(), dateFromMonthKey(monthKeyState).getMonth() + 1, 1)))}
           onViewChange={setMonthView}
           onPrevWeek={() => setMonthWeekIndex(Math.max(0, monthWeekIndex - 1))}
           onNextWeek={() => setMonthWeekIndex(Math.min(monthWeekGroups.length - 1, monthWeekIndex + 1))}
@@ -527,25 +545,56 @@ function Auth({ onAuth, initialError = "" }) {
   );
 }
 
-function TopBar({ user, weekKey, days, onPrev, onNext, onSettings, onLogout }) {
+function TopBar({ section, user, weekKey, monthKeyValue, monthEndBalance, days, onPrev, onNext, onPrevMonth, onNextMonth, onMenu }) {
   const start = days[0]?.date || dateFromWeekKey(weekKey);
   const weekNumber = weekKey.split("-W")[1];
+  const isMonth = section === "month";
   return (
     <header className="top-bar">
       <div className="top-actions">
-        <button className="icon-button" aria-label="Настройки" onClick={onSettings}>⚙</button>
+        <span>Финансы</span>
         <span>{user.login}</span>
-        <button className="icon-button" aria-label="Выйти" onClick={onLogout}>↪</button>
+        <button className="icon-button menu-button" aria-label="Открыть меню" onClick={onMenu}>
+          <span />
+          <span />
+          <span />
+        </button>
       </div>
       <div className="week-title">
-        <button className="nav-button" aria-label="Предыдущая неделя" onClick={onPrev}>‹</button>
+        <button className="nav-button" aria-label={isMonth ? "Предыдущий месяц" : "Предыдущая неделя"} onClick={isMonth ? onPrevMonth : onPrev}>‹</button>
         <div>
-          <strong>{monthNames[start.getMonth()]} {start.getFullYear()}</strong>
-          <span>{weekNumber}-я неделя</span>
+          <strong>{isMonth ? monthLabel(monthKeyValue) : `${monthNames[start.getMonth()]} ${start.getFullYear()}`}</strong>
+          <span>{isMonth ? `К концу: ${money(monthEndBalance)} ₽` : `${weekNumber}-я неделя`}</span>
         </div>
-        <button className="nav-button" aria-label="Следующая неделя" onClick={onNext}>›</button>
+        <button className="nav-button" aria-label={isMonth ? "Следующий месяц" : "Следующая неделя"} onClick={isMonth ? onNextMonth : onNext}>›</button>
       </div>
     </header>
+  );
+}
+
+function SideMenu({ open, activeSection, user, onClose, onSectionChange, onSettings, onLogout }) {
+  return (
+    <div className={open ? "side-menu-layer open" : "side-menu-layer"} aria-hidden={!open}>
+      <button className="side-menu-backdrop" aria-label="Закрыть меню" onClick={onClose} />
+      <aside className="side-menu">
+        <div className="side-menu-head">
+          <div>
+            <span className="label">Аккаунт</span>
+            <strong>{user.login}</strong>
+          </div>
+          <button className="icon-button" aria-label="Закрыть меню" onClick={onClose}>×</button>
+        </div>
+        <nav className="side-nav">
+          <button className={activeSection === "overview" ? "active" : ""} onClick={() => onSectionChange("overview")}>Главная</button>
+          <button className={activeSection === "week" ? "active" : ""} onClick={() => onSectionChange("week")}>Неделя</button>
+          <button className={activeSection === "month" ? "active" : ""} onClick={() => onSectionChange("month")}>Месяц</button>
+        </nav>
+        <div className="side-menu-actions">
+          <button onClick={onSettings}>Настройки</button>
+          <button className="danger-text" onClick={onLogout}>Выйти</button>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -714,8 +763,6 @@ function MonthPlanner({
   selectedWeek,
   weekIndex,
   loading,
-  onPrevMonth,
-  onNextMonth,
   onViewChange,
   onPrevWeek,
   onNextWeek,
@@ -724,15 +771,6 @@ function MonthPlanner({
 }) {
   return (
     <div className="week-content">
-      <section className="month-head">
-        <button className="nav-button" aria-label="Предыдущий месяц" onClick={onPrevMonth}>‹</button>
-        <div>
-          <strong>{monthLabel(monthKeyValue)}</strong>
-          <span>К концу месяца: {money(model.endBalance)} ₽</span>
-        </div>
-        <button className="nav-button" aria-label="Следующий месяц" onClick={onNextMonth}>›</button>
-      </section>
-
       <div className="view-toggle">
         <button className={view === "calendar" ? "active" : ""} onClick={() => onViewChange("calendar")}>Календарь</button>
         <button className={view === "weeks" ? "active" : ""} onClick={() => onViewChange("weeks")}>Недели</button>
