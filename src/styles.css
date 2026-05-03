@@ -245,6 +245,38 @@ select:focus {
   font-size: 13px;
 }
 
+.section-tabs,
+.view-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 12px 0;
+  padding: 4px;
+  border-radius: 8px;
+  background: #eef3f8;
+}
+
+.view-toggle {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.section-tabs button,
+.view-toggle button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  color: #5f7084;
+  background: transparent;
+  font-weight: 800;
+}
+
+.section-tabs button.active,
+.view-toggle button.active {
+  color: #102033;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(16, 32, 51, 0.08);
+}
+
 .week-title {
   justify-content: space-between;
 }
@@ -288,6 +320,11 @@ select:focus {
   background: #f3f7fc;
 }
 
+.overview {
+  display: grid;
+  gap: 12px;
+}
+
 .summary div,
 .day-head div:first-child {
   display: grid;
@@ -307,6 +344,10 @@ select:focus {
 .day-list {
   display: grid;
   gap: 10px;
+}
+
+.day-list.compact {
+  gap: 8px;
 }
 
 .day-row {
@@ -452,6 +493,115 @@ select:focus {
   padding: 14px 0 4px;
 }
 
+.month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.month-head div {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.month-head strong {
+  font-size: 19px;
+}
+
+.month-head span {
+  color: #8492a6;
+  font-size: 13px;
+}
+
+.compact-head {
+  padding-top: 0;
+}
+
+.nav-button:disabled {
+  color: #c8d1dc;
+}
+
+.month-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.calendar-weekday {
+  color: #8492a6;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.calendar-day {
+  position: relative;
+  min-height: 88px;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 7px 5px;
+  border: 1px solid #edf1f6;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.calendar-day.today {
+  border-color: #1677ff;
+  background: #f4f9ff;
+}
+
+.calendar-day strong {
+  font-size: 15px;
+}
+
+.calendar-day span,
+.calendar-day small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.calendar-day span:first-of-type {
+  color: #12805c;
+}
+
+.calendar-day span:nth-of-type(2) {
+  color: #d93025;
+}
+
+.calendar-day small {
+  color: #5f7084;
+}
+
+.mini-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  color: #8492a6;
+  background: #eef3f8;
+}
+
+.wide-action {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #1677ff;
+  background: #eef5ff;
+  font-weight: 800;
+}
+
 .section-head {
   justify-content: space-between;
   margin-bottom: 8px;
@@ -507,6 +657,20 @@ svg {
 .spent-line {
   stroke: #143fb5;
   stroke-width: 4;
+}
+
+.balance-line {
+  fill: none;
+  stroke: #1677ff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.start-balance-line {
+  stroke: #9aa6b4;
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
 }
 
 .dot {
@@ -569,6 +733,14 @@ svg {
   fill: #e34b4b;
 }
 
+.balance-dot {
+  fill: #1677ff;
+}
+
+.today-dot {
+  fill: #102033;
+}
+
 svg text {
   fill: #8492a6;
   font-size: 12px;
@@ -598,6 +770,14 @@ svg text {
 
 .allowed-swatch {
   background: #a9b2bf;
+}
+
+.balance-swatch {
+  background: #1677ff;
+}
+
+.start-swatch {
+  background: #9aa6b4;
 }
 
 .fab {

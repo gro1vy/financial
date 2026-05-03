@@ -78,12 +78,27 @@ function getBody(req) {
 }
 
 function publicUser(user) {
+  ensureUserDefaults(user);
   return {
     id: user.id,
     login: user.login,
-    settings: user.settings || { rememberBudget: false, defaultBudget: null },
+    settings: user.settings,
+    wallet: user.wallet,
     expenseTitles: getExpenseTitles(user),
   };
+}
+
+function ensureUserDefaults(user) {
+  user.settings ||= {};
+  user.settings = {
+    rememberBudget: Boolean(user.settings.rememberBudget),
+    defaultBudget: user.settings.defaultBudget ?? null,
+    confirmTime: user.settings.confirmTime || "21:00",
+  };
+  user.wallet ||= { balance: null, updatedAt: null };
+  user.expenseTitles ||= [];
+  user.weeks ||= {};
+  user.monthPlans ||= {};
 }
 
 function getExpenseTitles(user) {
@@ -127,6 +142,29 @@ function weekKey(date = new Date()) {
   return `${value.getFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
+function monthKey(date = new Date()) {
+  const value = new Date(date);
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function normalizeMonthPlan(user, key) {
+  ensureUserDefaults(user);
+  user.monthPlans[key] ||= { items: [] };
+  user.monthPlans[key].items ||= [];
+  return user.monthPlans[key];
+}
+
+function dynamicExpensesForMonth(user, key) {
+  const [year, month] = key.split("-").map(Number);
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const monthEndDate = new Date(year, month, 0);
+  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(monthEndDate.getDate()).padStart(2, "0")}`;
+  return Object.values(user.weeks || {})
+    .flatMap((week) => week.expenses || [])
+    .filter((expense) => expense.date >= monthStart && expense.date <= monthEnd)
+    .map((expense) => ({ ...expense, flow: "dynamic", type: "expense" }));
+}
+
 async function api(req, res) {
   const db = readDb();
   const body = req.method === "GET" ? {} : await getBody(req);
@@ -141,9 +179,11 @@ async function api(req, res) {
       id: randomBytes(12).toString("hex"),
       login,
       password: passwordHash(password),
-      settings: { rememberBudget: false, defaultBudget: null },
+      settings: { rememberBudget: false, defaultBudget: null, confirmTime: "21:00" },
+      wallet: { balance: null, updatedAt: null },
       expenseTitles: [],
       weeks: {},
+      monthPlans: {},
     };
     db.users.push(user);
     const sid = randomBytes(24).toString("hex");
@@ -171,6 +211,7 @@ async function api(req, res) {
 
   const user = requireUser(req, res, db);
   if (!user) return;
+  ensureUserDefaults(user);
 
   if (req.url === "/api/me" && req.method === "GET") {
     return json(res, 200, { user: publicUser(user) });
@@ -180,9 +221,98 @@ async function api(req, res) {
     user.settings = {
       rememberBudget: Boolean(body.rememberBudget),
       defaultBudget: body.defaultBudget === null || body.defaultBudget === "" ? null : Math.max(0, Number(body.defaultBudget)),
+      confirmTime: String(body.confirmTime || user.settings.confirmTime || "21:00").slice(0, 5),
     };
     writeDb(db);
     return json(res, 200, { user: publicUser(user) });
+  }
+
+  if (req.url === "/api/wallet" && req.method === "PUT") {
+    const nextBalance = Number(body.balance);
+    if (!Number.isFinite(nextBalance)) return json(res, 400, { error: "Укажи корректный баланс" });
+    const previousBalance = user.wallet.balance;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = monthKey(today);
+
+    user.wallet = { balance: nextBalance, updatedAt: new Date().toISOString() };
+
+    if (previousBalance !== null && previousBalance !== undefined && Number(previousBalance) !== nextBalance) {
+      const diff = nextBalance - Number(previousBalance);
+      const plan = normalizeMonthPlan(user, key);
+      plan.items.push({
+        id: randomBytes(10).toString("hex"),
+        date: today,
+        type: diff >= 0 ? "income" : "expense",
+        flow: "fixed",
+        title: "Корректировка баланса",
+        amount: Math.abs(diff),
+        askActual: false,
+        confirmed: true,
+        source: "wallet-adjustment",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    writeDb(db);
+    return json(res, 200, { user: publicUser(user), month: user.monthPlans[key] || { items: [] } });
+  }
+
+  if (req.url.startsWith("/api/month") && req.method === "GET") {
+    const url = new URL(req.url, "http://localhost");
+    const key = url.searchParams.get("key") || monthKey();
+    const plan = normalizeMonthPlan(user, key);
+    return json(res, 200, { key, month: plan, dynamicExpenses: dynamicExpensesForMonth(user, key) });
+  }
+
+  if (req.url === "/api/month/items" && req.method === "POST") {
+    const date = String(body.date || new Date().toISOString().slice(0, 10));
+    const key = monthKey(date);
+    const amount = Math.max(0, Number(body.amount || 0));
+    if (!amount) return json(res, 400, { error: "Укажи сумму" });
+    const item = {
+      id: randomBytes(10).toString("hex"),
+      date,
+      type: body.type === "income" ? "income" : "expense",
+      flow: "fixed",
+      title: String(body.title || "Фиксированная операция").slice(0, 80),
+      amount,
+      askActual: Boolean(body.askActual),
+      actualAmount: body.actualAmount === null || body.actualAmount === "" || body.actualAmount === undefined ? null : Math.max(0, Number(body.actualAmount)),
+      confirmed: Boolean(body.confirmed),
+      source: "manual",
+      createdAt: new Date().toISOString(),
+    };
+    const plan = normalizeMonthPlan(user, key);
+    plan.items.push(item);
+    writeDb(db);
+    return json(res, 201, { item, month: plan });
+  }
+
+  if (req.url.startsWith("/api/month/items/") && req.method === "PUT") {
+    const id = req.url.split("/").pop().split("?")[0];
+    const key = String(body.monthKey || monthKey(body.date || new Date()));
+    const plan = normalizeMonthPlan(user, key);
+    const item = plan.items.find((item) => item.id === id);
+    if (!item) return json(res, 404, { error: "Операция не найдена" });
+    item.date = String(body.date || item.date);
+    item.type = body.type === "income" ? "income" : "expense";
+    item.title = String(body.title || item.title).slice(0, 80);
+    item.amount = Math.max(0, Number(body.amount || item.amount || 0));
+    item.askActual = Boolean(body.askActual);
+    item.actualAmount = body.actualAmount === null || body.actualAmount === "" || body.actualAmount === undefined ? null : Math.max(0, Number(body.actualAmount));
+    item.confirmed = Boolean(body.confirmed);
+    writeDb(db);
+    return json(res, 200, { item, month: plan });
+  }
+
+  if (req.url.startsWith("/api/month/items/") && req.method === "DELETE") {
+    const url = new URL(req.url, "http://localhost");
+    const key = url.searchParams.get("monthKey") || monthKey();
+    const id = req.url.split("/").pop().split("?")[0];
+    const plan = normalizeMonthPlan(user, key);
+    plan.items = plan.items.filter((item) => item.id !== id);
+    writeDb(db);
+    return json(res, 200, { month: plan });
   }
 
   if (req.url.startsWith("/api/week") && req.method === "GET") {
@@ -199,7 +329,7 @@ async function api(req, res) {
     user.weeks[key] ||= { budget: null, expenses: [] };
     user.weeks[key].budget = Math.max(0, Number(body.budget || 0));
     if (body.rememberBudget) {
-      user.settings = { rememberBudget: true, defaultBudget: user.weeks[key].budget };
+      user.settings = { ...user.settings, rememberBudget: true, defaultBudget: user.weeks[key].budget };
     }
     writeDb(db);
     return json(res, 200, { week: user.weeks[key], user: publicUser(user) });
